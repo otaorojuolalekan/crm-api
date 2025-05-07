@@ -1,0 +1,108 @@
+require('dotenv').config()
+const express = require('express');
+const mysql = require('mysql2/promise');
+;
+
+const app = express();
+const port = process.env.PORT || 3000;
+
+// Create the connection pool using the .env variables
+
+const pool = mysql.createPool({
+  host: process.env.DB_HOST || 'localhost',
+  user: process.env.DB_USER || 'root',
+  password: process.env.DB_PASSWORD || 'password',
+  database: process.env.DB_NAME || 'your_database_name',
+  waitForConnections: true,
+  connectionLimit: 10,
+  queueLimit: 0,
+  connectTimeout: 10000
+});
+
+// Endpoint 1: Get case details by case_number
+app.get('/casedetails/:case_number', async(req, res) => {
+  const caseNumber = req.params.case_number;
+
+  const sql = `
+   SELECT
+ 	c.case_number,
+ 	(select a.name from accounts a where a.id = c.account_id) account,
+        c.category,
+        c.subcategory,
+ 	c.status,
+ 	c.date_entered date_created,
+ 	c.description,
+ 	(select acu.description
+ 	from aop_case_updates acu
+ 	WHERE acu.case_id = c.id 
+ 	order by acu.date_modified DESC 
+ 	LIMIT 1 OFFSET 2) 3rd_last_update,
+ 	(select acu.description
+ 	from aop_case_updates acu
+ 	WHERE acu.case_id = c.id 
+ 	order by acu.date_modified DESC 
+ 	LIMIT 1 OFFSET 1) 2nd_last_update,
+ 	(select acu.description
+ 	from aop_case_updates acu
+ 	where acu.case_id =c.id 
+ 	order by acu.date_modified DESC limit 1) last_update,
+ 	(SELECT concat(u.first_name, ' ', u.last_name) from users u where u.id = c.created_by) as created_by,
+ 	(SELECT u.department from users u where u.id = c.created_by) as created_dept,
+ 	(SELECT u.department from users u where u.id = c.created_by) as created_dept,
+ 	(SELECT concat(u.first_name, ' ', u.last_name) from users u where u.id = c.modified_user_id) as modified_by,
+ 	(SELECT u.department from users u where u.id = c.modified_user_id) as modified_dept,
+ 	(SELECT u.department from users u where u.id = c.modified_user_id) as modified_dept,
+        (SELECT CONCAT('https://crm.ikejaelectric.com/power/index.php', CHAR(63), 'module=Cases&return_module=Cases&action=DetailView&record=', c.id)) AS URL, 	
+ 	(SELECT concat(u.first_name, ' ', u.last_name) from users u where u.id = c.assigned_user_id) as assigned_user,
+ 	(SELECT u.department from users u where u.id = c.assigned_user_id) as assigned_dept,
+ 	c.date_modified date_modified,
+ 	(select count(id) from aop_case_updates acu where acu.case_id = c.id) as No_of_Case_Updates
+    FROM cases c
+    WHERE c.case_number = ?
+  `;
+
+  try {
+    console.log(`Executing query with case number: ${caseNumber}`);
+    const [rows] = await pool.query(sql, [caseNumber]);
+    res.json(rows);
+  } catch (error) {
+    console.error('Query error:', error.message);
+    res.status(500).json({ error: 'Database query failed' });
+  }
+});
+
+
+
+// Endpoint 2: Get account details by account number
+
+app.get('/accountdetails/:account_number', async(req, res) => {
+  const accountId = req.params.account_number;
+
+  const sql = `
+ select a.id, 
+ 	name account_number, 
+ 	convert(date_entered, date) as date_created,
+ 	(select concat(u.first_name, ' ', u.last_name) from users u where u.id = a.created_by) as created_by,
+ 	(select bt.BUSINESS_UNIT from BU_TABLE bt where bt.BUS_ID = a.business_unit) as BU,
+ 	(select ut.UNDERTAKING from UT_TABLE ut where ut.UT_id = a.undertaking) as UT,
+  	(select GROUP_CONCAT(c.case_number SEPARATOR ', ') from cases c where c.account_id = a.id) as SR_Numbers,
+ 	(select count(id) from cases c where c.account_id = a.id) as No_of_SRs
+ 	from accounts a
+    WHERE a.name = ?
+  `;
+    
+  try {
+    console.log(`Executing query with account number: ${accountId}`);
+    const [rows] = await pool.query(sql, [accountId]);
+    res.json(rows);
+  } catch (error) {
+    console.error('Query error:', error.message);
+    res.status(500).json({ error: 'Database query failed' });
+  }
+});
+
+
+// Start the server
+app.listen(port, () => {
+  console.log(`Server is running on http://localhost:${port}`);
+});
