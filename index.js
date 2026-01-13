@@ -32,20 +32,30 @@ app.get('/casedetails/:case_number', async(req, res) => {
  	c.status,
  	c.date_entered date_created,
  	c.description,
+  (select acu.description
+ 	from aop_case_updates acu
+ 	WHERE acu.case_id = c.id 
+ 	order by acu.date_modified DESC 
+ 	LIMIT 1 OFFSET 2) 5th_latest_update,
+  (select acu.description
+ 	from aop_case_updates acu
+ 	WHERE acu.case_id = c.id 
+ 	order by acu.date_modified DESC 
+ 	LIMIT 1 OFFSET 3) 4th_latest_update,
  	(select acu.description
  	from aop_case_updates acu
  	WHERE acu.case_id = c.id 
  	order by acu.date_modified DESC 
- 	LIMIT 1 OFFSET 2) 3rd_last_update,
+ 	LIMIT 1 OFFSET 2) 3rd_latest_update,
  	(select acu.description
  	from aop_case_updates acu
  	WHERE acu.case_id = c.id 
  	order by acu.date_modified DESC 
- 	LIMIT 1 OFFSET 1) 2nd_last_update,
+ 	LIMIT 1 OFFSET 1) 2nd_latest_update,
  	(select acu.description
  	from aop_case_updates acu
  	where acu.case_id =c.id 
- 	order by acu.date_modified DESC limit 1) last_update,
+ 	order by acu.date_modified DESC limit 1) latest_update,
  	(SELECT concat(u.first_name, ' ', u.last_name) from users u where u.id = c.created_by) as created_by,
  	(SELECT u.department from users u where u.id = c.created_by) as created_dept,
  	(SELECT u.department from users u where u.id = c.created_by) as created_dept,
